@@ -1828,6 +1828,7 @@ function integrate(p) {
     }
   }
   const finite = v => { for (let c = 0; c < v.length; c++) if (!isFinite(v[c])) return false; return true; };
+  track(0, y, 0);
 
   if (method === 'rk4') {
     const k2 = new Float64Array(N), k3 = new Float64Array(N), k4 = new Float64Array(N), tmp = new Float64Array(N), yn = new Float64Array(N);
@@ -1998,6 +1999,11 @@ function run() {
   frame = Math.round(frac * Math.max(0, sol.nFrames - 1));
   $('scrub').value = frame;
   tPlay = frameTime(frame);
+  $('tnow').textContent = 't = ' + tPlay.toFixed(3);
+  const canPlay = sol.nFrames > 1;
+  $('play').disabled = !canPlay;
+  $('scrub').disabled = !canPlay;
+  if (!canPlay) pause();
   updateStats(s);
   updateReadouts();
   markChangedCells();
@@ -2014,6 +2020,7 @@ function updateStats(s) {
   const c = sol.close;
   $('s-close').innerHTML = `bodies ${c.pair[0] + 1}–${c.pair[1] + 1}, r = ${c.r.toPrecision(3)} at <button type="button" class="linkish" id="jump">t = ${c.t.toFixed(3)}</button>`;
   $('jump').onclick = () => { pause(); setFrame(Math.round(c.t / sol.T * (sol.nOut - 1))); };
+  $('jump').disabled = sol.nFrames === 0;
 
   const sb = $('statusBox');
   sb.hidden = sol.status === 'ok';
@@ -2097,6 +2104,16 @@ function niceTicks(lo, hi, n) {
 
 // ---------------------------------------------------------------- orbit view
 const VEL_SCALE = 0.6;
+// Keep the editable ring separate from the body even when its velocity is zero.
+// The arrow still ends at the true velocity; a dashed extension leads to the ring.
+function velocityHandle(i, M) {
+  const x = M.X(ic.x[i]), y = M.Y(ic.y[i]);
+  const dx = M.X(ic.x[i] + ic.vx[i] * VEL_SCALE) - x;
+  const dy = M.Y(ic.y[i] + ic.vy[i] * VEL_SCALE) - y;
+  const length = Math.hypot(dx, dy), radius = Math.max(28, length);
+  return { x: x + (length ? dx / length : 1) * radius, y: y + (length ? dy / length : 0) * radius };
+}
+
 function computeView() {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const add = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
@@ -2182,7 +2199,7 @@ function drawOrbit() {
   }
   ctx.globalAlpha = 1;
 
-  const pos = i => drag || atStart ? [ic.x[i], ic.y[i]] : [sol.out[frame * 14 + i], sol.out[frame * 14 + 7 + i]];
+  const pos = i => drag || atStart || sol.nFrames === 0 ? [ic.x[i], ic.y[i]] : [sol.out[frame * 14 + i], sol.out[frame * 14 + 7 + i]];
   const radius = i => 2.6 + 1.5 * Math.sqrt(Math.max(0, ic.m[i]));
 
   // ghost of the unchanged problem
@@ -2235,7 +2252,13 @@ function drawOrbit() {
         ctx.lineTo(X1 - 9 * Math.cos(ang + 0.4), Y1 - 9 * Math.sin(ang + 0.4));
         ctx.closePath(); ctx.fill();
       }
-      ctx.beginPath(); ctx.arc(X1, Y1, 6, 0, 2 * Math.PI); ctx.lineWidth = 1; ctx.stroke();
+      const handle = velocityHandle(i, M);
+      if (Math.hypot(handle.x - X1, handle.y - Y1) > 1) {
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(handle.x, handle.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.beginPath(); ctx.arc(handle.x, handle.y, 6, 0, 2 * Math.PI); ctx.lineWidth = 1; ctx.stroke();
     }
   }
 
@@ -2259,7 +2282,7 @@ function drawOrbit() {
 
   $('hint').innerHTML = note ? note
     : drag ? 'Release to recompute the run.'
-    : atStart ? '<b>Drag a body</b> to move it, or <b>drag the ring</b> at the tip of its arrow to change its velocity.'
+    : atStart ? '<b>Drag a body</b> to move it, or <b>drag its ring</b> to change its velocity. Short arrows have a dashed extension to the ring.'
     : 'Press <b>Rewind</b> to edit the starting positions and velocities on the plot.';
 }
 
@@ -2415,7 +2438,8 @@ function drawFrameDependent() { drawOrbit(); drawX1Y1(); drawSteps(); }
 
 // ---------------------------------------------------------------- playback
 function setFrame(k) {
-  frame = Math.max(0, Math.min(sol.nFrames - 1, k));
+  if (!sol) return;
+  frame = Math.max(0, Math.min(Math.max(0, sol.nFrames - 1), k));
   $('scrub').value = frame;
   $('tnow').textContent = 't = ' + frameTime(frame).toFixed(3);
   tPlay = frameTime(frame);
@@ -2425,6 +2449,7 @@ function pause() { playing = false; $('play').textContent = 'Play'; }
 let lastTs = 0;
 function tick(ts) {
   if (!playing) return;
+  if (!sol || sol.nFrames < 2) { pause(); return; }
   const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0;
   lastTs = ts;
   tPlay += dt * 0.25 * parseFloat($('speed').value);
@@ -2442,7 +2467,8 @@ function tick(ts) {
   if (playing) requestAnimationFrame(tick);
 }
 function play() {
-  if (!sol) return;
+  if (!sol || sol.nFrames < 2) { pause(); return; }
+  if (playing) return;
   if (frame >= sol.nFrames - 1) { frame = 0; tPlay = 0; }
   playing = true; lastTs = 0; $('play').textContent = 'Pause';
   requestAnimationFrame(tick);
@@ -2488,11 +2514,11 @@ function pointerWorld(e) {
 }
 function hitTest(e) {
   const { M, px, py } = pointerWorld(e);
-  for (let i = 0; i < 7; i++) {
-    const tx = ic.x[i] + ic.vx[i] * VEL_SCALE, ty = ic.y[i] + ic.vy[i] * VEL_SCALE;
-    if (Math.hypot(M.X(tx) - px, M.Y(ty) - py) < 10) return { i, kind: 'vel' };
-  }
   for (let i = 0; i < 7; i++) if (Math.hypot(M.X(ic.x[i]) - px, M.Y(ic.y[i]) - py) < 14) return { i, kind: 'pos' };
+  for (let i = 0; i < 7; i++) {
+    const handle = velocityHandle(i, M);
+    if (Math.hypot(handle.x - px, handle.y - py) < 10) return { i, kind: 'vel' };
+  }
   return null;
 }
 const cvo = $('orbit');
@@ -2501,19 +2527,21 @@ cvo.addEventListener('pointerdown', e => {
   note = '';
   const hit = hitTest(e);
   if (!hit) return;
-  drag = hit; cvo.setPointerCapture(e.pointerId); e.preventDefault();
+  const { M, px, py } = pointerWorld(e);
+  drag = { ...hit, px, py, scale: M.s, x: ic.x[hit.i], y: ic.y[hit.i], vx: ic.vx[hit.i], vy: ic.vy[hit.i] };
+  cvo.setPointerCapture(e.pointerId); e.preventDefault();
   drawOrbit();
 });
 cvo.addEventListener('pointermove', e => {
   if (!drag) { if (frame === 0 && !playing && view) cvo.style.cursor = hitTest(e) ? 'grab' : 'default'; return; }
-  const { M, px, py } = pointerWorld(e);
-  const [wx, wy] = M.inv(px, py);
+  const { px, py } = pointerWorld(e);
+  const dx = (px - drag.px) / drag.scale, dy = (drag.py - py) / drag.scale;
   const round = v => Math.round(v * 100) / 100;
   const i = drag.i;
   if (drag.kind === 'pos') {
-    ic.x[i] = round(wx); ic.y[i] = round(wy);
+    ic.x[i] = round(drag.x + dx); ic.y[i] = round(drag.y + dy);
   } else {
-    ic.vx[i] = round((wx - ic.x[i]) / VEL_SCALE); ic.vy[i] = round((wy - ic.y[i]) / VEL_SCALE);
+    ic.vx[i] = round(drag.vx + dx / VEL_SCALE); ic.vy[i] = round(drag.vy + dy / VEL_SCALE);
   }
   fillTable();
   drawOrbit();
