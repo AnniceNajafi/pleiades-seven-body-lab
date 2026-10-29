@@ -1,0 +1,346 @@
+COMP626 Project 1 - Pleiades problem
+Comments on the table of run characteristics (pleiades_table.txt)
+
+This file answers part (f) (what each column of the table means) and part
+(e) (what the table says about the solvers). The table itself is appended at
+the end; it is a copy of pleiades_table.txt as produced by "project1" on the
+machine used for this project (MATLAB R2025a, Windows 11). Re-running the
+code regenerates the table; every column except CPU is reproducible exactly,
+while CPU depends on the machine.
+
+==========================================================================
+PART (f): WHAT THE COLUMNS MEAN
+==========================================================================
+
+solver   Name of the MATLAB ODE suite solver used for the run. The first
+         three, ode45 (explicit Runge-Kutta 4(5), Dormand-Prince), ode23
+         (explicit Runge-Kutta 2(3), Bogacki-Shampine) and ode113
+         (variable order Adams-Bashforth-Moulton, orders 1 to 13) are
+         non-stiff solvers. The last four, ode15s (variable order NDF/BDF,
+         orders 1 to 5), ode23s (second order modified Rosenbrock), ode23t
+         (trapezoidal rule with a free interpolant) and ode23tb (TR-BDF2,
+         an implicit Runge-Kutta pair with a trapezoidal first stage and a
+         BDF2 second stage) are stiff solvers, which form a Jacobian and
+         solve linear systems as they step.
+
+rtol     Relative error tolerance, passed as odeset('RelTol', rtol).
+
+atol     Absolute error tolerance, odeset('AbsTol', atol). It governs the
+         accuracy required of a component while it passes through zero,
+         where a purely relative test is powerless.
+
+         The two tolerances act together in MATLAB's local error test,
+         which at every step requires of each component
+
+             |e_i| <= max( rtol*|u_i| , atol_i ).
+
+         It is the LARGER of the two bounds that applies, not their sum:
+         whichever of the relative and the absolute criterion is the more
+         permissive for that component decides. This project uses
+         atol = rtol throughout, so the absolute bound governs wherever
+         |u_i| < 1 and the relative bound governs elsewhere.
+
+h0       Initial step size, odeset('InitialStep', h0). It is only the first
+         trial step: the step size controller adapts immediately afterwards.
+         A small h0 costs a few extra steps at the start and protects
+         against an over-optimistic first step.
+
+mescd    Minimum number of mixed significant correct digits at t = 3, in
+         the form required by part (d):
+
+             mescd = -log10( ||u - uref||_inf / (atol/rtol + ||uref||_inf) )
+
+         where ||.||_inf is the largest absolute value over the components.
+         Both norms are taken of the whole vector, so this is NOT a
+         componentwise weighting: one single number, atol/rtol + ||uref||_inf,
+         scales the largest absolute error in the solution. With atol = rtol
+         and ||uref||_inf = 5.2251 (attained by the component y3), that
+         divisor equals 6.2251 in every run of this project, so here mescd
+         is simply the largest absolute error expressed in digits and
+         shifted by the constant log10(6.2251) = 0.794.
+
+         Its purpose is to stay meaningful when a component passes near
+         zero at the end point, where a relative measure would report a
+         catastrophic loss of digits although nothing is wrong. All 28
+         components are used, following the test set, which states that for
+         mescd "all the components of the solution are taken into account"
+         (page II-ii). Larger is better: mescd = 6 means about six correct
+         digits in the worst component.
+
+         CAUTION when comparing with the test set: its own mescd (formula
+         .II.2, page II-ii) is a different, componentwise quantity,
+
+             mescd_testset = -log10( || e ./ (atol + rtol.*uref) ||_inf ),
+
+         so the mescd column of Table II.6.3 must NOT be read against the
+         mescd column here. The scd columns, by contrast, are defined
+         identically in the two documents and are directly comparable.
+
+scd      Minimum number of significant correct digits at t = 3,
+
+             scd = -log10( || (u - uref) ./ uref ||_inf )
+
+         when every reference component satisfies |uref_i| >= 1e-12, and the
+         absolute version -log10( ||u - uref||_inf ) otherwise. Here the
+         division is element by element, so scd is a genuinely relative,
+         componentwise measure, and it is the stricter of the two. For this
+         problem all reference components are of order one, so the relative
+         form applies. Following the test set (page II-6-3), scd is computed
+         on the first 14 components, the positions x1..x7 and y1..y7, "since
+         they refer to the physically important quantities".
+
+         Both component conventions are set in one place, as P.imescd and
+         P.iscd in pleiades_setup.m. Computing mescd on the 14 positions
+         instead of all 28 components raises it by 0.1 to 0.6 of a digit
+         (ode45 at rtol = 1e-4 would report 2.37 instead of 2.11), because
+         the largest absolute errors in this problem sit in the velocity
+         components, not in the positions.
+
+steps    Total number of steps the solver attempted, that is accepted steps
+         plus rejected ones (MATLAB reports these as "successful steps" and
+         "failed attempts"). This matches the test set, whose steps column
+         is the "total number of steps taken by the solver (including
+         rejected steps due to error test failures and/or convergence test
+         failures)".
+
+accept   Number of steps that passed the local error test and advanced the
+         solution. The gap steps - accept measures wasted work: a large gap
+         means the step size controller kept overshooting, typically near
+         the quasi-collisions, where the solution changes character abruptly.
+
+#f       Number of evaluations of the right-hand side Pleiades.m. For the
+         explicit solvers this is essentially the number of stages times the
+         number of steps. For the stiff solvers it also contains the extra
+         evaluations spent on finite-difference Jacobians, which is why
+         ode23s, which refreshes its Jacobian every step, needs so many.
+         The count comes from a counting wrapper around the right-hand side
+         rather than from the printed statistics, because MATLAB prints
+         large counters in %g format and loses digits.
+
+#Jac     Number of Jacobian evaluations (MATLAB prints these as "partial
+         derivatives"). Since no analytic Jacobian is supplied, each one
+         costs 28 extra right-hand side evaluations by finite differences.
+         A dash means the solver never forms a Jacobian: ode45, ode23 and
+         ode113 are explicit.
+
+#LU      Number of LU decompositions of the iteration matrix I - h*gamma*J.
+         This is the quantity tabulated as #LU in the test set, which
+         defines it as "the number of LU-decompositions" (page II-ii).
+
+#solve   Number of linear systems solved with those factorizations (MATLAB
+         prints "solutions of linear systems").
+
+         Both columns are reported because the assignment describes #LU as
+         "number of LU systems solved", which reads as either the
+         factorizations or the solves, and MATLAB counts them separately.
+         The distinction is exactly what makes implicit solvers affordable:
+         a factorization costs O(n^3) and is reused over many steps, while
+         each solve costs only O(n^2). Stiff solvers therefore refactor only
+         when the step size or the Jacobian changes appreciably, so #LU is
+         normally far below #solve, which is itself several per step (one
+         per Newton iteration or per Rosenbrock stage). ode23s is the
+         exception: its formula refactors at every single step. A dash means
+         the solver solves no linear systems.
+
+CPU      Execution time of the solver call in seconds, taken as the minimum
+         over five runs, as required by part (d). The minimum rather than
+         the mean is used because it is the statistic least contaminated by
+         operating system noise. Timing runs use the plain right-hand side
+         with statistics off, so the instrumentation does not inflate the
+         number. (The test set instead reports the median of ten runs after
+         discarding the extremes, on different hardware, so the CPU columns
+         of the two tables are not comparable in any case.)
+
+==========================================================================
+PART (e): COMMENTS ON THE RESULTS
+==========================================================================
+
+The table discussed below is reproduced at the end of this file and is
+regenerated by pleiades_table.m into pleiades_table.txt. All runs integrate
+the Pleiades problem on [0, 3] from the initial values of Section II.6.2,
+and mescd/scd are measured against the reference solution of Table II.6.2.
+
+1. THE PROBLEM IS NON-STIFF, AND THE TABLE SAYS SO LOUDLY.
+   The three non-stiff solvers win at every tolerance. At rtol = 1e-10,
+   ode113 delivers 7.71 correct digits (scd) in 0.017 s and 2239 function
+   evaluations, while ode23s needs 11.21 s and 1.82 million function
+   evaluations to deliver 5.23 digits: about 650 times the cost for two and
+   a half digits less accuracy. The stiff solvers are not defective here,
+   they are simply paying for machinery (Jacobians, LU factorizations,
+   Newton iterations) that buys nothing when no fast transient needs to be
+   damped. The step size here is dictated by accuracy near the close
+   encounters, not by stability, which is exactly the regime explicit
+   methods own.
+
+2. HIGH ORDER PAYS WHEN THE TOLERANCE IS TIGHT.
+   The growth of the step count from rtol = 1e-4 to rtol = 1e-10 (six
+   decades) follows the classical rule steps ~ tol^(-1/(q+1)), with q the
+   order of the local error estimate:
+
+       ode23     464 ->  45793   ( 98.7x )   q = 2  predicts 100x
+       ode23t    808 ->  81309   (100.6x )   q = 2  predicts 100x
+       ode23tb   643 ->  64257   ( 99.9x )   q = 2  predicts 100x
+       ode23s    592 ->  58702   ( 99.2x )   q = 2  predicts 100x
+       ode45     127 ->   1465   ( 11.5x )   q = 4  predicts 15.8x
+       ode113    363 ->   1128   (  3.1x )   variable order, up to 13
+       ode15s    522 ->   4125   (  7.9x )   variable order, up to 5
+
+   Every second order solver, stiff or not, is punished by the same factor
+   of 100. ode113, which raises its order as the solution gets smooth,
+   barely notices the six decade tightening: it is the cheapest run in the
+   table at rtol = 1e-10 and the best choice for this problem overall.
+   ode45 is the accuracy champion (scd = 8.84) at a still tiny 0.052 s, so
+   it is the better pick if digits matter more than milliseconds.
+
+3. THE LOOSE TOLERANCE IS NOT WORTH RUNNING.
+   At rtol = 1e-4 no solver reaches even two correct digits (scd between
+   0.61 and 1.82), so the computed final positions are wrong in the first
+   or second figure. The reason is visible in the figure of part (c): three
+   quasi-collisions involving body 1 occur at t = 1.23, 1.46 and 1.68
+   (Table II.6.1), and each one amplifies whatever error has accumulated so
+   far. A tolerance controls the local error per step, not the global
+   error, and this problem amplifies local errors strongly. Practically:
+   requesting four digits and receiving one is normal here, and accuracy
+   must be judged against a reference solution, never against the tolerance.
+
+4. TIGHTENING THE TOLERANCE BUYS MORE THAN ONE DIGIT PER DECADE.
+   Going from rtol = 1e-4 to 1e-10, ode45 improves from scd 1.14 to 8.84,
+   about 1.3 digits per decade of tolerance, and ode23 from 1.82 to 7.84.
+   The stiff solvers gain less: ode23t goes from 0.61 to 4.73, about 0.7
+   digits per decade, and stays two to four digits behind the explicit
+   solvers at the same tolerance. The tolerance is therefore a reliable
+   knob for accuracy, but the exchange rate depends on the solver.
+
+5. WHAT THE GAP BETWEEN mescd AND scd ACTUALLY MEASURES.
+   mescd exceeds scd in every row, by between 0.59 and 0.98 of a digit, and
+   the gap is genuinely variable rather than a fixed offset, because the two
+   measures are not merely rescaled versions of one another:
+
+     - mescd divides the largest absolute error of the whole 28-vector by
+       the single constant atol/rtol + ||uref||_inf = 6.2251. Its maximum is
+       attained in a VELOCITY component in all 21 runs, usually x5' (index
+       19) or x1' (index 15): the velocities are the largest and the fastest
+       changing components, so they carry the largest absolute errors.
+
+     - scd divides each of the 14 position errors by its own reference
+       value. Its maximum is attained at x1 (reference 0.3706) in most runs
+       and at x5 (reference 0.3426) in the rest. These are the two smallest
+       positions in magnitude, so they are the ones a relative measure
+       punishes hardest.
+
+   So the gap is the ratio between the largest velocity error scaled by
+   6.2251 and the largest position error scaled by about 0.35, and it moves
+   from row to row as the error distribution among the components shifts.
+   The two measures nevertheless rank the solvers identically here.
+   They would part company sharply if a component passed near zero at
+   t = 3: with a position of size 1e-8, say, scd would report a
+   catastrophic loss of digits where nothing is actually wrong, which is
+   precisely the situation mescd is designed to absorb.
+
+6. JACOBIANS ARE ESSENTIALLY FREE FOR THREE OF THE FOUR STIFF SOLVERS.
+   ode15s, ode23t and ode23tb each evaluate exactly ONE Jacobian for the
+   whole integration, at any tolerance, and factor it only 112 to 351 times.
+   On a non-stiff problem the Newton iteration converges immediately, so
+   MATLAB never needs to refresh the Jacobian. The #LU and #solve columns
+   show how much this economy is worth: at rtol = 1e-10 ode23t performs
+   81467 linear solves but only 159 factorizations, roughly one solve per
+   step re-using a factorization held for hundreds of steps, and its 81498
+   function evaluations are barely one per step.
+   ode23s is the opposite. Its Rosenbrock formula uses the Jacobian as part
+   of the formula itself, so it forms and factors a new one at every step:
+   58702 Jacobians and 58702 LU decompositions against 176106 solves, three
+   per step, one per stage. Each numerical Jacobian costs 28 extra
+   right-hand side evaluations, which is where the 1.82 million evaluations
+   come from, and the O(n^3) refactorization at every step is what makes
+   ode23s the slowest solver in the table by an order of magnitude.
+   Supplying an analytic Jacobian would remove the 28 evaluations per step
+   but not the refactorization, so ode23s would still lose.
+
+7. REJECTED STEPS CLUSTER AT LOOSE TOLERANCES.
+   The gap between the steps and accept columns is widest at rtol = 1e-4
+   (ode45 rejects 21 of 127 attempts, about 17 percent; ode15s rejects 59
+   of 522) and vanishes at rtol = 1e-10 for most solvers. With a loose
+   tolerance the controller takes large, ambitious steps into the close
+   encounters and is repeatedly forced to back off; with a tight tolerance
+   the steps are already small enough that almost nothing is rejected.
+
+8. THE PRESCRIBED h0 IS ESSENTIALLY IRRELEVANT.
+   The initial steps required here (1e-6, 1e-9, 1e-12) are far below what
+   the problem needs at t = 0, where the solution is perfectly smooth. The
+   step size controller recovers within a handful of steps, so h0 costs a
+   few extra steps and buys safety against an over-optimistic first step.
+   It is not what distinguishes the rows of this table.
+
+9. COMPARISON WITH THE TEST SET (Table II.6.3).
+   Only the scd columns may be compared, since the test set computes mescd
+   by a different formula (see the mescd entry above). At rtol = 1e-10 the
+   test set reports
+
+       DASSL 5.72   GAMD 7.39   MEBDFI 6.94   PSIDE-1 7.55
+       RADAU 9.20   VODE 5.20
+
+   against, from this project,
+
+       ode45 8.84   ode23 7.84   ode113 7.71   ode15s 6.04
+       ode23s 5.23  ode23t 4.73  ode23tb 4.68
+
+   The MATLAB explicit solvers hold their own in that company: ode45 is
+   beaten only by RADAU, and ode113 and ode23 land between MEBDFI and
+   PSIDE-1. The MATLAB stiff solvers sit at or below the bottom of the
+   range, alongside VODE, which is the same message as point 1 above. CPU
+   times are not comparable across the two tables: different hardware, and
+   the test set reports the median of ten runs where part (d) asks for the
+   minimum of five.
+
+CONCLUSION
+   For the Pleiades problem, use ode113 (cheapest per digit) or ode45 (most
+   accurate per unit time at tight tolerance), with rtol = atol = 1e-10 if
+   the final positions are to be trusted to more than a few digits. Avoid
+   the stiff solvers, and ode23s in particular. Do not trust rtol = 1e-4
+   results at all: they carry about one correct digit.
+
+==========================================================================
+THE TABLE (part d), as generated by pleiades_table.m
+==========================================================================
+
+Table: Pleiades problem run characteristics, t in [0, 3]
+Pleiades problem, t in [0 3], CPU = min of 5 runs, 19-Sep-2026 19:52:11
+
+solver      rtol    atol      h0   mescd     scd    steps   accept         #f   #Jac     #LU   #solve       CPU
+---------------------------------------------------------------------------------------------------------------
+ode45      1e-04   1e-04   1e-06    2.11    1.14      127      106        763      -       -        -    0.0057
+ode45      1e-07   1e-07   1e-09    5.70    4.77      371      371       2227      -       -        -    0.0139
+ode45      1e-10   1e-10   1e-12    9.51    8.84     1465     1465       8791      -       -        -    0.0523
+
+ode23      1e-04   1e-04   1e-06    2.47    1.82      464      460       1393      -       -        -    0.0089
+ode23      1e-07   1e-07   1e-09    5.54    4.84     4584     4584      13753      -       -        -    0.0808
+ode23      1e-10   1e-10   1e-12    8.54    7.84    45793    45793     137380      -       -        -    0.8093
+
+ode113     1e-04   1e-04   1e-06    2.07    1.48      363      343        707      -       -        -    0.0056
+ode113     1e-07   1e-07   1e-09    5.31    4.33      679      657       1337      -       -        -    0.0104
+ode113     1e-10   1e-10   1e-12    8.36    7.71     1128     1110       2239      -       -        -    0.0172
+
+ode15s     1e-04   1e-04   1e-06    1.40    0.74      522      463        795      1     112      766    0.0087
+ode15s     1e-07   1e-07   1e-09    4.27    3.59     1397     1327       1612      1     178     1581    0.0219
+ode15s     1e-10   1e-10   1e-12    6.70    6.04     4125     4048       4610      1     351     4579    0.0509
+
+ode23s     1e-04   1e-04   1e-06    1.98    1.01      592      590      18295    590     592     1776    0.1112
+ode23s     1e-07   1e-07   1e-09    4.14    3.21     5875     5875     182138   5875    5875    17625    1.1018
+ode23s     1e-10   1e-10   1e-12    6.16    5.23    58702    58702    1819765  58702   58702   176106   11.2093
+
+ode23t     1e-04   1e-04   1e-06    1.49    0.61      808      807       1340      1     136     1311    0.0113
+ode23t     1e-07   1e-07   1e-09    3.51    2.67     8160     8160       8360      1     154     8329    0.0668
+ode23t     1e-10   1e-10   1e-12    5.48    4.73    81309    81309      81498      1     159    81467    0.6390
+
+ode23tb    1e-04   1e-04   1e-06    1.59    0.74      643      642       2101      1     133     2715    0.0171
+ode23tb    1e-07   1e-07   1e-09    3.60    2.82     6419     6419      19268      1     155    25656    0.1422
+ode23tb    1e-10   1e-10   1e-12    5.62    4.68    64257    64257     192614      1     164   256840    1.4192
+---------------------------------------------------------------------------------------------------------------
+mescd = -log10( ||u-uref||_inf / (atol/rtol + ||uref||_inf) ), all 28 components.
+scd   = -log10( ||(u-uref)./uref||_inf ), the 14 positions x1..x7, y1..y7.
+steps = accepted + failed attempts;  CPU in seconds (minimum of 5 runs).
+#Jac  = Jacobian evaluations. #LU = LU decompositions (the quantity in
+        Table II.6.3); #solve = linear systems solved with those factors,
+        both given because "#LU (number of LU systems solved)" is ambiguous.
+A dash marks a counter the solver does not report: ode45, ode23 and ode113
+are explicit and form no Jacobian and no linear systems.

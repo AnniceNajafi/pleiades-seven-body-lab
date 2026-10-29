@@ -1,0 +1,22 @@
+# Course handout and the third-party Bari test-set document are not redistributed
+Project1.pdf
+TESTSET.pdf
+
+# Private review notes
+tmp/
+
+# LaTeX build files (Report.pdf is kept)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+
+# MATLAB editor autosave
+*.asv
+
+# Browser-test screenshots
+.playwright-mcp/

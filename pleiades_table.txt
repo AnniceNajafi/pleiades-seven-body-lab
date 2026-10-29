@@ -1,0 +1,41 @@
+Table: Pleiades problem run characteristics, t in [0, 3]
+Pleiades problem, t in [0 3], CPU = min of 5 runs, 19-Sep-2026 19:52:11
+
+solver      rtol    atol      h0   mescd     scd    steps   accept         #f   #Jac     #LU   #solve       CPU
+---------------------------------------------------------------------------------------------------------------
+ode45      1e-04   1e-04   1e-06    2.11    1.14      127      106        763      -       -        -    0.0057
+ode45      1e-07   1e-07   1e-09    5.70    4.77      371      371       2227      -       -        -    0.0139
+ode45      1e-10   1e-10   1e-12    9.51    8.84     1465     1465       8791      -       -        -    0.0523
+
+ode23      1e-04   1e-04   1e-06    2.47    1.82      464      460       1393      -       -        -    0.0089
+ode23      1e-07   1e-07   1e-09    5.54    4.84     4584     4584      13753      -       -        -    0.0808
+ode23      1e-10   1e-10   1e-12    8.54    7.84    45793    45793     137380      -       -        -    0.8093
+
+ode113     1e-04   1e-04   1e-06    2.07    1.48      363      343        707      -       -        -    0.0056
+ode113     1e-07   1e-07   1e-09    5.31    4.33      679      657       1337      -       -        -    0.0104
+ode113     1e-10   1e-10   1e-12    8.36    7.71     1128     1110       2239      -       -        -    0.0172
+
+ode15s     1e-04   1e-04   1e-06    1.40    0.74      522      463        795      1     112      766    0.0087
+ode15s     1e-07   1e-07   1e-09    4.27    3.59     1397     1327       1612      1     178     1581    0.0219
+ode15s     1e-10   1e-10   1e-12    6.70    6.04     4125     4048       4610      1     351     4579    0.0509
+
+ode23s     1e-04   1e-04   1e-06    1.98    1.01      592      590      18295    590     592     1776    0.1112
+ode23s     1e-07   1e-07   1e-09    4.14    3.21     5875     5875     182138   5875    5875    17625    1.1018
+ode23s     1e-10   1e-10   1e-12    6.16    5.23    58702    58702    1819765  58702   58702   176106   11.2093
+
+ode23t     1e-04   1e-04   1e-06    1.49    0.61      808      807       1340      1     136     1311    0.0113
+ode23t     1e-07   1e-07   1e-09    3.51    2.67     8160     8160       8360      1     154     8329    0.0668
+ode23t     1e-10   1e-10   1e-12    5.48    4.73    81309    81309      81498      1     159    81467    0.6390
+
+ode23tb    1e-04   1e-04   1e-06    1.59    0.74      643      642       2101      1     133     2715    0.0171
+ode23tb    1e-07   1e-07   1e-09    3.60    2.82     6419     6419      19268      1     155    25656    0.1422
+ode23tb    1e-10   1e-10   1e-12    5.62    4.68    64257    64257     192614      1     164   256840    1.4192
+---------------------------------------------------------------------------------------------------------------
+mescd = -log10( ||u-uref||_inf / (atol/rtol + ||uref||_inf) ), all 28 components.
+scd   = -log10( ||(u-uref)./uref||_inf ), the 14 positions x1..x7, y1..y7.
+steps = accepted + failed attempts;  CPU in seconds (minimum of 5 runs).
+#Jac  = Jacobian evaluations. #LU = LU decompositions (the quantity in
+        Table II.6.3); #solve = linear systems solved with those factors,
+        both given because "#LU (number of LU systems solved)" is ambiguous.
+A dash marks a counter the solver does not report: ode45, ode23 and ode113
+are explicit and form no Jacobian and no linear systems.
